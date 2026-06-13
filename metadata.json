@@ -1,0 +1,6 @@
+{
+  "name": "Linguo",
+  "description": "An intuitive, AI-powered language learning platform for 140+ languages with visual lessons and interactive tutoring.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

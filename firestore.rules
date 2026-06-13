@@ -1,0 +1,131 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['points', 'level', 'displayName', 'avatarSeed', 'slogan']) &&
+             data.points is number && data.points >= 0 &&
+             data.level is number && data.level > 0 &&
+             data.displayName is string && data.displayName.size() <= 50 &&
+             data.avatarSeed is string && data.avatarSeed.size() <= 100 &&
+             data.slogan is string && data.slogan.size() <= 100 &&
+             (data.get('streak', 0) is number);
+    }
+
+    function isValidClassroom(data) {
+      return data.keys().hasAll(['teacherId', 'teacherName', 'language', 'code', 'status', 'createdAt']) &&
+             data.teacherId is string && data.teacherId.size() <= 128 &&
+             data.teacherName is string && data.teacherName.size() <= 100 &&
+             data.language is string && data.language.size() <= 50 &&
+             data.code is string && data.code.size() == 6 &&
+             data.status in ['active', 'finished'] &&
+             data.createdAt is string &&
+             (data.get('currentLessonId', null) == null || (data.currentLessonId is string && data.currentLessonId.size() <= 128));
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['userId', 'teacherId', 'name', 'joinedAt']) &&
+             (data.userId == null || (data.userId is string && data.userId.size() <= 128)) &&
+             data.teacherId is string && data.teacherId.size() <= 128 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.joinedAt is string &&
+             (data.get('progress', 0) is number) &&
+             (data.get('active', true) is bool);
+    }
+
+    function isValidLesson(data) {
+      return data.keys().hasAll(['title', 'level', 'assignedAt', 'status', 'teacherId']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.level is string && data.level.size() <= 20 &&
+             data.assignedAt is string &&
+             data.status in ['pending', 'active', 'finished'] &&
+             data.teacherId is string && data.teacherId.size() <= 128;
+    }
+
+    // --- Collections ---
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId);
+      allow list: if false; 
+
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming()) && (
+        // Allow all progress fields to be updated by the owner
+        incoming().diff(existing()).affectedKeys().hasAll([]) 
+      );
+      
+      allow delete: if false; // No deletion for now
+    }
+
+    match /classrooms/{classroomId} {
+      // Allow teacher to list their own classes OR anyone to find an active class by status/code query
+      allow list: if isSignedIn() && (resource.data.teacherId == request.auth.uid || resource.data.status == 'active');
+      allow get: if isSignedIn();
+      
+      allow create: if isSignedIn() && isValidClassroom(incoming()) && incoming().teacherId == request.auth.uid;
+      
+      allow update: if isSignedIn() && (
+        // Only teacher can update classroom
+        resource.data.teacherId == request.auth.uid && isValidClassroom(incoming()) && (
+          incoming().teacherId == existing().teacherId &&
+          incoming().createdAt == existing().createdAt
+        )
+      );
+      
+      allow delete: if isSignedIn() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /classrooms/{classroomId}/students/{studentId} {
+      allow get, list: if isSignedIn() && (resource.data.teacherId == request.auth.uid || resource.data.userId == request.auth.uid);
+      
+      allow create, update: if isSignedIn() && isValidStudent(incoming()) && (
+        // Allow student to join if they provide their own uid or no uid (anon)
+        (incoming().userId == request.auth.uid || incoming().userId == null)
+      );
+      
+      allow delete: if isSignedIn() && (
+        resource.data.teacherId == request.auth.uid || resource.data.userId == request.auth.uid
+      );
+    }
+
+    match /classrooms/{classroomId}/lessons/{lessonId} {
+      allow get, list: if isSignedIn() && (resource.data.teacherId == request.auth.uid || get(/databases/$(database)/documents/classrooms/$(classroomId)).data.status == 'active');
+      
+      allow create: if isSignedIn() && 
+        incoming().teacherId == request.auth.uid &&
+        isValidLesson(incoming());
+        
+      allow update: if isSignedIn() && 
+        resource.data.teacherId == request.auth.uid &&
+        isValidLesson(incoming());
+        
+      allow delete: if isSignedIn() && 
+        resource.data.teacherId == request.auth.uid;
+    }
+  }
+}

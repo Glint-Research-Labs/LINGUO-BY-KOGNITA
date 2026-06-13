@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User progress and profile data.",
+      "type": "object",
+      "properties": {
+        "points": { "type": "number" },
+        "level": { "type": "number" },
+        "displayName": { "type": "string" },
+        "avatarSeed": { "type": "string" },
+        "slogan": { "type": "string" },
+        "completedLessons": { "type": "array" },
+        "completedTopics": { "type": "array" },
+        "streak": { "type": "number" },
+        "lastLogin": { "type": "string" },
+        "quests": { "type": "array" },
+        "achievements": { "type": "array" },
+        "srsData": { "type": "array" }
+      },
+      "required": ["points", "level", "displayName", "avatarSeed", "slogan"]
+    },
+    "Classroom": {
+      "title": "Classroom",
+      "description": "Live teaching session metadata.",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "language": { "type": "string" },
+        "code": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "currentLessonId": { "type": "string" }
+      },
+      "required": ["teacherId", "language", "code", "status", "createdAt"]
+    },
+    "SessionStudent": {
+      "title": "Session Student",
+      "description": "A student joined to a live session.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "name": { "type": "string" },
+        "joinedAt": { "type": "string" },
+        "progress": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["userId", "teacherId", "name", "joinedAt"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "A lesson assigned to a classroom.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "level": { "type": "string" },
+        "assignedAt": { "type": "string" },
+        "status": { "type": "string" },
+        "teacherId": { "type": "string" }
+      },
+      "required": ["title", "level", "assignedAt", "status", "teacherId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user progress and profile information."
+    },
+    "/classrooms/{classroomId}": {
+      "schema": "Classroom",
+      "description": "Active classroom sessions."
+    },
+    "/classrooms/{classroomId}/students/{studentId}": {
+      "schema": "SessionStudent",
+      "description": "Students currently in the classroom."
+    },
+    "/classrooms/{classroomId}/lessons/{lessonId}": {
+      "schema": "Lesson",
+      "description": "Lessons assigned to this classroom."
+    }
+  }
+}
